@@ -26,9 +26,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Run tests
-        uses: ./.github/actions/run-tests
-        env:
-          GOPATH: /github/home/go
+        run: make test-all
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then
