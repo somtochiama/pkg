@@ -12,6 +12,9 @@ permissions: read-all
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-11]
     steps:
       - name: Checkout
         uses: actions/checkout@v2

@@ -35,8 +35,9 @@ func TestMakeFsOnDiskSecure(t *testing.T) {
 	t.Run("error on root prefixed with allowed prefix", func(t *testing.T) {
 		g := NewWithT(t)
 
-		tmpDir, err := testTempDir(t)
-		g.Expect(err).ToNot(HaveOccurred())
+		tmpDir := t.TempDir()
+		// tmpDir, err := testTempDir(t)
+		// g.Expect(err).ToNot(HaveOccurred())
 
 		matchingDir := filepath.Join(tmpDir, "subdir")
 		g.Expect(os.Mkdir(matchingDir, 0o644)).To(Succeed())
