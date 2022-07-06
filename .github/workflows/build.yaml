@@ -25,12 +25,8 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      # - name: Run tests
-      #   run: make test-kustomize
       - name: Run tests
-        uses: ./.github/actions/run-tests
-        env:
-          GOPATH: /github/home/go
+        run: make all
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then
