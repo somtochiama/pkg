@@ -36,6 +36,7 @@ func TestMakeFsOnDiskSecure(t *testing.T) {
 		g := NewWithT(t)
 
 		tmpDir := t.TempDir()
+		fmt.Println("====", tmpDir)
 		// tmpDir, err := testTempDir(t)
 		// g.Expect(err).ToNot(HaveOccurred())
 
@@ -53,6 +54,7 @@ func Test_fsSecure_Create(t *testing.T) {
 	g := NewWithT(t)
 
 	root, err := testTempDir(t)
+	fmt.Println("====", root)
 	g.Expect(err).ToNot(HaveOccurred())
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())

@@ -25,10 +25,15 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - name: Check symlink tmp
-        run: ls -la /
+      - name: Create symlink tmp
+        run: |
+        ls -la /
+        mkdir -p /private/tmp
+        mkdir -p /private/var
+        ln -s /private/tmp /tmp
+        ln -s /private/var /var
       - name: Run tests
-        run: make all
+        run: make test-kustomize
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then
