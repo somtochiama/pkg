@@ -25,15 +25,12 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - name: Create symlink tmp
-        run: |
-          ls -la /
-#     sudo mkdir -p /private/tmp
-#     sudo mkdir -p /private/var
-#     ln -s /private/tmp /tmp
-#     ln -s /private/var /var
+      # - name: Run tests
+      #   run: make test-kustomize
       - name: Run tests
-        run: make test-kustomize
+        uses: ./.github/actions/run-tests
+        env:
+          GOPATH: /github/home/go
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then
