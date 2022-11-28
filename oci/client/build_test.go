@@ -18,6 +18,8 @@ package client
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,11 +30,17 @@ import (
 )
 
 func TestBuild(t *testing.T) {
+	g := NewWithT(t)
 	c := NewLocalClient()
+
+	absPath := fmt.Sprintf("%s/deployment.yaml", t.TempDir())
+	err := copyFile(absPath, "testdata/artifact/deployment.yaml")
+	g.Expect(err).To(BeNil())
 
 	tests := []struct {
 		name       string
 		path       string
+		testDir    string
 		ignorePath []string
 		expectErr  bool
 		checkPaths []string
@@ -60,6 +68,18 @@ func TestBuild(t *testing.T) {
 			ignorePath: []string{"/*", "!/internal"},
 			checkPaths: []string{"/testdata", "!internal/", "build.go", "meta.go"},
 		},
+		{
+			name:       "relative file path",
+			path:       "testdata/artifact/deployment.yaml",
+			testDir:    "./",
+			checkPaths: []string{"!deployment.yaml"},
+		},
+		{
+			name:       "absolute file path",
+			path:       absPath,
+			testDir:    "./",
+			checkPaths: []string{"!deployment.yaml"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -86,44 +106,13 @@ func TestBuild(t *testing.T) {
 			err = tar.Untar(bytes.NewReader(b), untarDir, tar.WithMaxUntarSize(-1))
 			g.Expect(err).To(BeNil())
 
-			checkPathExists(t, untarDir, tt.path, tt.checkPaths)
+			testDir := tt.path
+			if tt.testDir != "" {
+				testDir = tt.testDir
+			}
+			checkPathExists(t, untarDir, testDir, tt.checkPaths)
 		})
 	}
-}
-
-// test only one file exists
-func TestBuildOneFile(t *testing.T) {
-	c := NewLocalClient()
-	g := NewWithT(t)
-
-	tmpDir := t.TempDir()
-	artifactPath := filepath.Join(tmpDir, "files.tar.gz")
-
-	sourceDir := "testdata/artifact"
-	sourceFile := filepath.Join(sourceDir, "/deployment.yaml")
-
-	err := c.Build(artifactPath, sourceFile, []string{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = os.Stat(artifactPath)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	b, err := os.ReadFile(artifactPath)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	untarDir := t.TempDir()
-	err = tar.Untar(bytes.NewReader(b), untarDir, tar.WithMaxUntarSize(-1))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	_, err = os.Stat(filepath.Join(untarDir, sourceFile))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	files, err := os.ReadDir(filepath.Join(untarDir, sourceDir))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Expect(len(files)).To(Equal(1))
 }
 
 func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
@@ -145,4 +134,20 @@ func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
 		g.Expect(err).ToNot(BeNil())
 		g.Expect(os.IsNotExist(err)).To(BeTrue())
 	}
+}
+
+func copyFile(dst, src string) error {
+	f, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("unable to create file: %w", err)
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	_, err = io.Copy(f, source)
+	return err
 }

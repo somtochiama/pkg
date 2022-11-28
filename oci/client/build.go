@@ -33,7 +33,8 @@ import (
 // Build archives the given directory as a tarball to the given local path.
 // While archiving, any environment specific data (for example, the user and group name) is stripped from file headers.
 func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (err error) {
-	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+	dirStat, err := os.Stat(sourceDir)
+	if os.IsNotExist(err) {
 		return fmt.Errorf("invalid source dir path: %s", sourceDir)
 	}
 
@@ -82,17 +83,21 @@ func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (er
 		if err != nil {
 			return err
 		}
-		// The name needs to be modified to maintain directory structure
-		// as tar.FileInfoHeader only has access to the base name of the file.
-		// Ref: https://golang.org/src/archive/tar/common.go?#L626
-		relFilePath := p
-		if filepath.IsAbs(sourceDir) {
-			relFilePath, err = filepath.Rel(sourceDir, p)
-			if err != nil {
-				return err
+		if dirStat.IsDir() {
+			// The name needs to be modified to maintain directory structure
+			// as tar.FileInfoHeader only has access to the base name of the file.
+			// Ref: https://golang.org/src/archive/tar/common.go?#L6264
+			//
+			// we only want to do this if a directory was passed in
+			relFilePath := p
+			if filepath.IsAbs(sourceDir) {
+				relFilePath, err = filepath.Rel(sourceDir, p)
+				if err != nil {
+					return err
+				}
 			}
+			header.Name = relFilePath
 		}
-		header.Name = relFilePath
 
 		// Remove any environment specific data.
 		header.Gid = 0
