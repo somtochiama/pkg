@@ -37,6 +37,9 @@ func TestBuild(t *testing.T) {
 	err := copyFile(absPath, "testdata/artifact/deployment.yaml")
 	g.Expect(err).To(BeNil())
 
+	absDir, err := filepath.Abs("testdata/artifact")
+	g.Expect(err).To(BeNil())
+
 	tests := []struct {
 		name       string
 		path       string
@@ -53,6 +56,12 @@ func TestBuild(t *testing.T) {
 		{
 			name:       "existing path",
 			path:       "testdata/artifact",
+			ignorePath: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
+			checkPaths: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
+		},
+		{
+			name:       "absolute directory path",
+			path:       absDir,
 			ignorePath: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
 			checkPaths: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
 		},
@@ -106,17 +115,15 @@ func TestBuild(t *testing.T) {
 			err = tar.Untar(bytes.NewReader(b), untarDir, tar.WithMaxUntarSize(-1))
 			g.Expect(err).To(BeNil())
 
-			testDir := tt.path
-			if tt.testDir != "" {
-				testDir = tt.testDir
-			}
-			checkPathExists(t, untarDir, testDir, tt.checkPaths)
+			checkPath(g, untarDir, tt.checkPaths)
 		})
 	}
 }
 
-func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
-	g := NewWithT(t)
+// checkPath takes a directory and an array of files as its argument. For each item in the array, if a file name in the list
+// is prefixed with an exclamation mark (!), it checks that the filepath exists else it checks that is doesn't exist.
+func checkPath(g *WithT, dir string, paths []string) {
+	g.THelper()
 
 	for _, path := range paths {
 		var shouldExist bool
@@ -125,7 +132,7 @@ func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
 			path = path[1:]
 		}
 
-		fullPath := filepath.Join(dir, testDir, path)
+		fullPath := filepath.Join(dir, path)
 		_, err := os.Stat(fullPath)
 		if shouldExist {
 			g.Expect(err).To(BeNil())
