@@ -48,7 +48,8 @@ func ValidHost(host string) bool {
 // Client is a GCP GCR client which can log into the registry and return
 // authorization information.
 type Client struct {
-	tokenURL string
+	tokenURL    string
+	accessToken string
 }
 
 // NewClient creates a new GCR client with default configurations.
@@ -62,6 +63,11 @@ func (c *Client) WithTokenURL(url string) *Client {
 	return c
 }
 
+func (c *Client) WithAccessToken(token string) *Client {
+	c.accessToken = token
+	return c
+}
+
 // getLoginAuth obtains authentication by getting a token from the metadata API
 // on GCP. This assumes that the pod has right to pull the image which would be
 // the case if it is hosted on GCP. It works with both service account and
@@ -69,34 +75,38 @@ func (c *Client) WithTokenURL(url string) *Client {
 func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, error) {
 	var authConfig authn.AuthConfig
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.tokenURL, nil)
-	if err != nil {
-		return authConfig, err
-	}
+	accessTok := c.accessToken
+	if accessTok == "" {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.tokenURL, nil)
+		if err != nil {
+			return authConfig, err
+		}
 
-	request.Header.Add("Metadata-Flavor", "Google")
+		request.Header.Add("Metadata-Flavor", "Google")
 
-	client := &http.Client{}
-	response, err := client.Do(request)
-	if err != nil {
-		return authConfig, err
-	}
-	defer response.Body.Close()
-	defer io.Copy(io.Discard, response.Body)
+		client := &http.Client{}
+		response, err := client.Do(request)
+		if err != nil {
+			return authConfig, err
+		}
+		defer response.Body.Close()
+		defer io.Copy(io.Discard, response.Body)
 
-	if response.StatusCode != http.StatusOK {
-		return authConfig, fmt.Errorf("unexpected status from metadata service: %s", response.Status)
-	}
+		if response.StatusCode != http.StatusOK {
+			return authConfig, fmt.Errorf("unexpected status from metadata service: %s", response.Status)
+		}
 
-	var accessToken gceToken
-	decoder := json.NewDecoder(response.Body)
-	if err := decoder.Decode(&accessToken); err != nil {
-		return authConfig, err
+		var accessToken gceToken
+		decoder := json.NewDecoder(response.Body)
+		if err := decoder.Decode(&accessToken); err != nil {
+			return authConfig, err
+		}
+		accessTok = accessToken.AccessToken
 	}
 
 	authConfig = authn.AuthConfig{
 		Username: "oauth2accesstoken",
-		Password: accessToken.AccessToken,
+		Password: accessTok,
 	}
 	return authConfig, nil
 }
