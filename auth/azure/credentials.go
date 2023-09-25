@@ -39,8 +39,6 @@ const (
 	clientCertificatePasswordField  = "clientCertificatePassword"
 	clientCertificateSendChainField = "clientCertificateSendChain"
 	authorityHostField              = "authorityHost"
-	accountKeyField                 = "accountKey"
-	sasKeyField                     = "sasKey"
 
 	clientIDAnnotation = "azure.workload.identity/client-id"
 	tenantIDAnnotation = "azure.workload.identity/tenant-id"
@@ -122,19 +120,13 @@ func ValidateSecret(secret *corev1.Secret) error {
 	if _, hasClientID := secret.Data[clientIDField]; hasClientID {
 		valid = true
 	}
-	if _, hasAccountKey := secret.Data[accountKeyField]; hasAccountKey {
-		valid = true
-	}
-	if _, hasSasKey := secret.Data[sasKeyField]; hasSasKey {
-		valid = true
-	}
 	if _, hasAuthorityHost := secret.Data[authorityHostField]; hasAuthorityHost {
 		valid = true
 	}
 
 	if !valid {
-		return fmt.Errorf("invalid '%s' secret data: requires a '%s' or '%s' field, a combination of '%s', '%s' and '%s', or '%s', '%s' and '%s'",
-			secret.Name, clientIDField, accountKeyField, tenantIDField, clientIDField, clientSecretField, tenantIDField, clientIDField, clientCertificateField)
+		return fmt.Errorf("invalid '%s' secret data: requires a '%s' field or a combination of '%s', '%s' and '%s', or '%s', '%s' and '%s'",
+			secret.Name, clientIDField, tenantIDField, clientIDField, clientSecretField, tenantIDField, clientIDField, clientCertificateField)
 	}
 	return nil
 }
