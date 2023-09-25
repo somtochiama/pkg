@@ -222,7 +222,3 @@ func tokenCredentialFromSecret(secret *corev1.Secret) (azcore.TokenCredential, e
 	}
 	return nil, nil
 }
-
-func getCreds()  {
-
-}
