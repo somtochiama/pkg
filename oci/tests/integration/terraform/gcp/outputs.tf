@@ -18,3 +18,7 @@ output "gcr_repository_url" {
 output "gcp_artifact_repository" {
   value = module.gcr.artifact_repository_id
 }
+
+output "serviceaccount_email" {
+  value = google_service_account.workload-identity-user-sa.email
+}
