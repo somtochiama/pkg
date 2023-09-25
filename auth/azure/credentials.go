@@ -41,56 +41,20 @@ const (
 	authorityHostField              = "authorityHost"
 	accountKeyField                 = "accountKey"
 	sasKeyField                     = "sasKey"
+
+	clientIDAnnotation = "azure.workload.identity/client-id"
+	tenantIDAnnotation = "azure.workload.identity/tenant-id"
 )
 
-type Config struct {
-	client ctrlClient.Client
-	ServiceAccount types.NamespacedName
-	Secret *corev1.Secret
-}
 
-type ConfigOptFunc func(config *Config)
-
-func NewConfig(opts ...ConfigOptFunc) *Config {
-	c := &Config{}
-	for _, opt := range opts {
-		opt(c)
-	}
-	return c
-}
-
-func WithServiceAccount(client ctrlClient.Client, saName string, saNs string) ConfigOptFunc {
-	return func(config *Config) {
-		config.ServiceAccount = types.NamespacedName{
-			Namespace: saNs,
-			Name: saName,
-		}
-		config.client = client
-	}
-}
-
-func WithSecret(secret *corev1.Secret) ConfigOptFunc {
-	return func(config *Config) {
-		config.Secret = secret
-	}
-}
-
-
-func (c *Config) GetCredentials(ctx context.Context) (creds azcore.TokenCredential, err error) {
-	if c.ServiceAccount.String() != "" {
-		creds, err = GetAzureCredsFromServiceAccount(ctx, c.client, c.ServiceAccount)
-		return creds, err
+func GetAzureCredsFromSecret(ctx context.Context, client ctrlClient.Client, secretNsName types.NamespacedName) (azcore.TokenCredential, error) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: secretNsName.Name, Namespace: secretNsName.Namespace},
 	}
 
-	if c.Secret != nil {
-		creds, err = GetAzureCredsFromSecret(c.Secret)
-		return creds, err
+	if err := client.Get(ctx, types.NamespacedName{Namespace: secret.Namespace, Name: secret.Name}, secret); err != nil {
+		return nil, err
 	}
-
-	return nil, nil
-}
-
-func GetAzureCredsFromSecret(secret *corev1.Secret) (azcore.TokenCredential, error) {
 	if secret == nil {
 		return nil, fmt.Errorf("cannot get az TokenCredential from empty secret")
 	}
@@ -110,11 +74,11 @@ func GetAzureCredsFromServiceAccount(ctx context.Context, client ctrlClient.Clie
 		return nil, err
 	}
 
-	clientID := sa.Annotations["azure.workload.identity/client-id"]
+	clientID := sa.Annotations[clientIDAnnotation]
 	if clientID == "" {
 		return nil, fmt.Errorf("no client id annotation on serviceaccount")
 	}
-	tenantID := sa.Annotations["azure.workload.identity/tenant-id"]
+	tenantID := sa.Annotations[tenantIDAnnotation]
 	if tenantID == "" {
 		return nil, fmt.Errorf("no tenamt id annotation on serviceaccount")
 	}
