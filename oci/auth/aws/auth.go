@@ -52,6 +52,7 @@ func ParseRegistry(registry string) (accountId, awsEcrRegion string, ok bool) {
 type Client struct {
 	config *aws.Config
 	mu     sync.Mutex
+	optFns []func(*config.LoadOptions) error
 }
 
 // NewClient creates a new empty ECR client.
@@ -70,6 +71,10 @@ func (c *Client) WithConfig(cfg *aws.Config) {
 	if c.config == nil {
 		c.config = cfg
 	}
+}
+
+func (p *Client) WithOptFns(optFns []func(*config.LoadOptions) error) {
+	p.optFns = append(p.optFns, optFns...)
 }
 
 // getLoginAuth obtains authentication for ECR given the
@@ -91,7 +96,8 @@ func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.A
 		cfg = c.config.Copy()
 	} else {
 		var err error
-		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(awsEcrRegion))
+		c.optFns = append(c.optFns, config.WithRegion(awsEcrRegion))
+		cfg, err = config.LoadDefaultConfig(ctx, c.optFns...)
 		if err != nil {
 			c.mu.Unlock()
 			return authConfig, fmt.Errorf("failed to load default configuration: %w", err)
