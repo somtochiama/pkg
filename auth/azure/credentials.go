@@ -45,7 +45,7 @@ const (
 )
 
 
-func GetAzureCredsFromSecret(ctx context.Context, client ctrlClient.Client, secretNsName types.NamespacedName) (azcore.TokenCredential, error) {
+func getAzureCredsFromSecret(ctx context.Context, client ctrlClient.Client, secretNsName types.NamespacedName) (azcore.TokenCredential, error) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: secretNsName.Name, Namespace: secretNsName.Namespace},
 	}
@@ -56,7 +56,7 @@ func GetAzureCredsFromSecret(ctx context.Context, client ctrlClient.Client, secr
 	if secret == nil {
 		return nil, fmt.Errorf("cannot get az TokenCredential from empty secret")
 	}
-	err := ValidateSecret(secret)
+	err := validateSecret(secret)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func GetAzureCredsFromSecret(ctx context.Context, client ctrlClient.Client, secr
 	return tokenCredentialFromSecret(secret)
 }
 
-func GetAzureCredsFromServiceAccount(ctx context.Context, client ctrlClient.Client, nsName types.NamespacedName) (azcore.TokenCredential, error) {
+func getAzureCredsFromServiceAccount(ctx context.Context, client ctrlClient.Client, nsName types.NamespacedName) (azcore.TokenCredential, error) {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: nsName.Name, Namespace: nsName.Namespace},
 	}
@@ -74,11 +74,11 @@ func GetAzureCredsFromServiceAccount(ctx context.Context, client ctrlClient.Clie
 
 	clientID := sa.Annotations[clientIDAnnotation]
 	if clientID == "" {
-		return nil, fmt.Errorf("no client id annotation on serviceaccount")
+		return nil, fmt.Errorf("no '%s' annotation on serviceaccount", clientIDAnnotation)
 	}
 	tenantID := sa.Annotations[tenantIDAnnotation]
 	if tenantID == "" {
-		return nil, fmt.Errorf("no tenamt id annotation on serviceaccount")
+		return nil, fmt.Errorf("no '%s' annotation on serviceaccount", tenantIDAnnotation)
 	}
 
 	getAssertionToken := func(ctx context.Context) (string, error) {
@@ -101,7 +101,7 @@ func GetAzureCredsFromServiceAccount(ctx context.Context, client ctrlClient.Clie
 
 // ValidateSecret validates if the provided Secret does at least have one valid
 // set of credentials. The provided Secret may be nil.
-func ValidateSecret(secret *corev1.Secret) error {
+func validateSecret(secret *corev1.Secret) error {
 	if secret == nil {
 		return nil
 	}

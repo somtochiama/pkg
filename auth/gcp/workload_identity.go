@@ -14,6 +14,7 @@ const GCP_TOKEN_URL = "http://metadata.google.internal/computeMetadata/v1/instan
 // Provider is an authentication provider for GCP.
 type Provider struct {
 	tokenURL string
+	accessToken string
 }
 
 type ProviderOptFunc func(*Provider)
@@ -43,7 +44,7 @@ type ServiceAccountToken struct {
 
 // GetWorkloadIdentityToken fetches the token for the service account that the
 // Pod is configured to run as, using Workload Identity. The token is fetched by
-// reaching out to the GKE metadata server which runs on each node (if Wokload
+// reaching out to the GKE metadata server which runs on each node (if Workload
 // Identity is enabled). Ref: https://cloud.google.com/kubernetes-engine/docs/concepts/workload-identity
 func (p *Provider) GetWorkloadIdentityToken(ctx context.Context) (*ServiceAccountToken, error) {
 	if p.tokenURL == "" {

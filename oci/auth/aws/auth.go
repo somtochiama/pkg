@@ -72,6 +72,8 @@ func (c *Client) WithConfig(cfg *aws.Config) {
 	}
 }
 
+
+
 // getLoginAuth obtains authentication for ECR given the
 // region (taken from the image). This assumes that the pod has
 // IAM permissions to get an authentication token, which will usually

@@ -78,7 +78,7 @@ func WithAzureChinaScope() ProviderOption {
 // is configurable using WithAzureGovtScope or WithAzureChinaScope.
 func (p *Provider) GetResourceManagerToken(ctx context.Context) (*azcore.AccessToken, error) {
 	if p.credential == nil && p.secret.String() != "" {
-		cred, err := GetAzureCredsFromSecret(ctx, p.client, p.secret)
+		cred, err := getAzureCredsFromSecret(ctx, p.client, p.secret)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func (p *Provider) GetResourceManagerToken(ctx context.Context) (*azcore.AccessT
 	}
 
 	if p.credential == nil && p.serviceAccount.String() != "" {
-		cred, err := GetAzureCredsFromServiceAccount(ctx, p.client, p.serviceAccount)
+		cred, err := getAzureCredsFromServiceAccount(ctx, p.client, p.serviceAccount)
 		if err != nil {
 			return nil, err
 		}
