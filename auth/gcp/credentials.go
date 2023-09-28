@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
@@ -42,23 +43,23 @@ const (
 	serviceAccountAnnotation = "iam.gke.io/gcp-service-account"
 )
 
-func GetTokenFromServiceAccount(ctx context.Context, client ctrlClient.Client, nsName types.NamespacedName) (string, error) {
+func GetTokenFromServiceAccount(ctx context.Context, client ctrlClient.Client, nsName types.NamespacedName) (string, time.Time, error) {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: nsName.Name, Namespace: nsName.Namespace},
 	}
 	if err := client.Get(ctx, types.NamespacedName{Namespace: sa.Namespace, Name: sa.Name}, sa); err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 
 	gcpSAName := sa.Annotations[serviceAccountAnnotation]
 	if gcpSAName == "" {
-		return "", fmt.Errorf("no `%s` annotation on serviceaccount", serviceAccountAnnotation)
+		return "", time.Time{}, fmt.Errorf("no `%s` annotation on serviceaccount", serviceAccountAnnotation)
 	}
 
 	// exchange oidc token for identity binding token
 	idPool, idProvider, err := getDetailsFromMetadataService()
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 
 	tr := &authenticationv1.TokenRequest{
@@ -67,17 +68,17 @@ func GetTokenFromServiceAccount(ctx context.Context, client ctrlClient.Client, n
 		},
 	}
 	if err := client.SubResource("token").Create(ctx, sa, tr); err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 
 	accessToken, err := tradeIDBindToken(ctx, tr.Status.Token, idPool, idProvider)
 	if err != nil {
-		return "", fmt.Errorf("error exchanging token: '%s'", err)
+		return "", time.Time{}, fmt.Errorf("error exchanging token: '%s'", err)
 	}
 	// exchange identity binding token for iam token
 	iamClient, err := credentials.NewIamCredentialsClient(ctx)
 	if err != nil {
-		return "", fmt.Errorf("error creating iam client: '%s'", err)
+		return "", time.Time{}, fmt.Errorf("error creating iam client: '%s'", err)
 	}
 
 	saResponse, err := iamClient.GenerateAccessToken(ctx, &credentialspb.GenerateAccessTokenRequest{
@@ -88,10 +89,10 @@ func GetTokenFromServiceAccount(ctx context.Context, client ctrlClient.Client, n
 	}, gax.WithGRPCOptions(grpc.PerRPCCredentials(oauth.TokenSource{TokenSource: oauth2.StaticTokenSource(accessToken)})))
 
 	if err != nil {
-		return "", fmt.Errorf("error exchanging access token w gcp iam: '%w'", err)
+		return "", time.Time{}, fmt.Errorf("error exchanging access token w gcp iam: '%w'", err)
 	}
 
-	return saResponse.GetAccessToken(), nil
+	return saResponse.GetAccessToken(), saResponse.GetExpireTime().AsTime(), nil
 }
 
 func getDetailsFromMetadataService() (string, string, error) {

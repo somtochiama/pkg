@@ -45,7 +45,7 @@ const (
 )
 
 
-func getAzureCredsFromSecret(ctx context.Context, client ctrlClient.Client, secretNsName types.NamespacedName) (azcore.TokenCredential, error) {
+func getCredentialsFromSecret(ctx context.Context, client ctrlClient.Client, secretNsName types.NamespacedName) (azcore.TokenCredential, error) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: secretNsName.Name, Namespace: secretNsName.Namespace},
 	}
@@ -64,7 +64,7 @@ func getAzureCredsFromSecret(ctx context.Context, client ctrlClient.Client, secr
 	return tokenCredentialFromSecret(secret)
 }
 
-func getAzureCredsFromServiceAccount(ctx context.Context, client ctrlClient.Client, nsName types.NamespacedName) (azcore.TokenCredential, error) {
+func getCredentialsFromServiceAccount(ctx context.Context, client ctrlClient.Client, nsName types.NamespacedName) (azcore.TokenCredential, error) {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: nsName.Name, Namespace: nsName.Namespace},
 	}
