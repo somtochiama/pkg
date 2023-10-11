@@ -25,3 +25,12 @@ test-azure:
 
 test-gcp:
 	$(MAKE) test PROVIDER_ARG="-provider gcp"
+
+test-gcp-wi:
+	$(MAKE) test PROVIDER_ARG="-provider gcp -enable-wi" TF_VAR_enable_wi=true TF_VAR_k8s_serviceaccount_name=test-workload-id
+
+test-aws-wi:
+	$(MAKE) test PROVIDER_ARG="-provider aws -enable-wi" TF_VAR_enable_wi=true TF_VAR_k8s_serviceaccount_name=test-workload-id
+
+test-azure-wi:
+	$(MAKE) test PROVIDER_ARG="-provider azure -enable-wi" TF_VAR_enable_wi=true TF_VAR_k8s_serviceaccount_name=test-workload-id

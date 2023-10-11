@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	tfjson "github.com/hashicorp/terraform-json"
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -69,6 +71,9 @@ var (
 	// verbose flag to enable output of terraform execution.
 	verbose = flag.Bool("verbose", false, "verbose output of the environment setup")
 
+	// enableWI flag to enable and test workload identity on the clusters
+	enableWI = flag.Bool("enable-wi", false, "use workload identity for clusters")
+
 	// testRepos is a map of registry common name and URL of the test
 	// repositories. This is used as the test cases to run the tests against.
 	// The registry common name need not be the actual registry address but an
@@ -86,6 +91,10 @@ var (
 	testImageTags = []string{"v0.1.0", "v0.1.2", "v0.1.3", "v0.1.4"}
 
 	testAppImage string
+
+	// name of the service account that will be created and annotated for workload
+	// identity
+	testSA = "test-workload-id"
 )
 
 // registryLoginFunc is used to perform registry login against a provider based
@@ -100,6 +109,10 @@ type registryLoginFunc func(ctx context.Context, output map[string]*tfjson.State
 // pushed to a corresponding registry repository for the image.
 type pushTestImages func(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error)
 
+// getServiceAccountAnnotations returns cloud provider specific annotations for the
+// service account when workload identity is used on the cluster.
+type getServiceAccountAnnotations func(output map[string]*tfjson.StateOutput) (map[string]string, error)
+
 // ProviderConfig is the test configuration of a supported cloud provider to run
 // the tests against.
 type ProviderConfig struct {
@@ -112,6 +125,9 @@ type ProviderConfig struct {
 	createKubeconfig tftestenv.CreateKubeconfig
 	// pushAppTestImages is used to push flux test images to a remote registry.
 	pushAppTestImages pushTestImages
+	// getServiceAccountAnnotations is used to return the provider specific annotations
+	// for the service account when using workload identity.
+	getServiceAccountAnnotations getServiceAccountAnnotations
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
@@ -164,6 +180,11 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
+	err = corev1.AddToScheme(scheme)
+	if err != nil {
+		panic(err)
+	}
+
 	// Initialize with non-zero exit code to indicate failure by default unless
 	// set by a successful test run.
 	exitCode := 1
@@ -175,6 +196,7 @@ func TestMain(m *testing.M) {
 		tftestenv.WithExisting(*existing),
 		tftestenv.WithCreateKubeconfig(providerCfg.createKubeconfig),
 	}
+
 	testEnv, err = tftestenv.New(ctx, scheme, providerCfg.terraformPath, kubeconfigPath, envOpts...)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to provision the test infrastructure: %v", err))
@@ -224,6 +246,30 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("Failed to create and push images: %v", err))
 	}
 
+	if *enableWI {
+		sa := &corev1.ServiceAccount{
+			ObjectMeta:                   metav1.ObjectMeta{
+				Name: testSA,
+				Namespace: "default",
+			},
+		}
+
+		annotations, err := providerCfg.getServiceAccountAnnotations(output)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to get service account func for workload identity: %v", err))
+		}
+
+		sa.Annotations = annotations
+		if err := testEnv.Client.Create(ctx, sa); err != nil {
+			panic(fmt.Sprintf("Failed to create service account for workload identity: %v", err))
+		}
+		defer func() {
+			if err := testEnv.Client.Delete(ctx, sa); err != nil {
+				log.Printf("failed to delete service account")
+			}
+		}()
+	}
+
 	exitCode = m.Run()
 }
 
@@ -236,6 +282,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			registryLogin:     registryLoginECR,
 			pushAppTestImages: pushAppTestImagesECR,
 			createKubeconfig:  createKubeconfigEKS,
+			getServiceAccountAnnotations: getServiceAccountAnnotationAWS,
 		}
 	case "azure":
 		return &ProviderConfig{
@@ -243,6 +290,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			registryLogin:     registryLoginACR,
 			pushAppTestImages: pushAppTestImagesACR,
 			createKubeconfig:  createKubeConfigAKS,
+			getServiceAccountAnnotations: getServiceAccountAnnotationAzure,
 		}
 	case "gcp":
 		return &ProviderConfig{
@@ -250,6 +298,8 @@ func getProviderConfig(provider string) *ProviderConfig {
 			registryLogin:     registryLoginGCR,
 			pushAppTestImages: pushAppTestImagesGCR,
 			createKubeconfig:  createKubeconfigGKE,
+			getServiceAccountAnnotations: getServiceAccountAnnotationGCP,
+
 		}
 	}
 	return nil

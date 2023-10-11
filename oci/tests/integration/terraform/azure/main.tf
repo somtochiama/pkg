@@ -15,20 +15,42 @@ locals {
 module "aks" {
   source = "git::https://github.com/fluxcd/test-infra.git//tf-modules/azure/aks"
 
-  name     = local.name
-  location = var.azure_location
-  tags     = var.tags
+  name      = local.name
+  location  = var.azure_location
+  tags      = var.tags
+  enable_wi = var.enable_wi
 }
 
 module "acr" {
   source = "git::https://github.com/fluxcd/test-infra.git//tf-modules/azure/acr"
 
-  name             = local.name
-  location         = var.azure_location
-  aks_principal_id = [module.aks.principal_id]
+  name     = local.name
+  location = var.azure_location
+  # give permissions to managed identity if workload identity is enabled
+  aks_principal_id = var.enable_wi ? [module.aks.principal_id, azurerm_user_assigned_identity.wi-id[0].principal_id] : [module.aks.principal_id]
   resource_group   = module.aks.resource_group
   admin_enabled    = true
   tags             = var.tags
+
+  depends_on = [module.aks]
+}
+
+resource "azurerm_user_assigned_identity" "wi-id" {
+  count               = var.enable_wi ? 1 : 0
+  location            = var.azure_location
+  name                = "test-workload-id"
+  resource_group_name = module.aks.resource_group
+  tags                = var.tags
+}
+
+resource "azurerm_federated_identity_credential" "federated-identity2" {
+  count               = var.enable_wi ? 1 : 0
+  name                = "test-wi"
+  resource_group_name = module.aks.resource_group
+  audience            = ["api://AzureADTokenExchange"]
+  issuer              = module.aks.cluster_oidc_url
+  parent_id           = azurerm_user_assigned_identity.wi-id[0].id
+  subject             = "system:serviceaccount:${var.k8s_serviceaccount_ns}:${var.k8s_serviceaccount_name}"
 
   depends_on = [module.aks]
 }

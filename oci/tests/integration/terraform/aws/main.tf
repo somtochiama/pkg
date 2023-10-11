@@ -10,7 +10,7 @@ locals {
 }
 
 module "eks" {
-  source = "git::https://github.com/fluxcd/test-infra.git//tf-modules/aws/eks"
+  source = "git::https://github.com/somtochiama/test-infra.git//tf-modules/aws/eks?ref=gcp-workload-id"
 
   name = local.name
   tags = var.tags
@@ -38,4 +38,21 @@ module "test_app_ecr" {
 
   name = "test-app-${local.name}"
   tags = var.tags
+}
+
+resource "aws_iam_role" "assume_role" {
+  count = var.enable_wi ? 1 : 0
+  name  = "test-wi-ecr"
+  assume_role_policy = templatefile("oidc_assume_role_policy.json", {
+    OIDC_ARN  = module.eks.cluster_oidc_arn, OIDC_URL = replace(module.eks.cluster_oidc_url, "https://", ""),
+    NAMESPACE = var.k8s_serviceaccount_ns, SA_NAME = var.k8s_serviceaccount_name
+  })
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "aws_node" {
+  count      = var.enable_wi ? 1 : 0
+  role       = aws_iam_role.assume_role[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  depends_on = [aws_iam_role.assume_role]
 }
