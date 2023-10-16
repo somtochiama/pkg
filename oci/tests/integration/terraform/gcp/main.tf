@@ -11,7 +11,7 @@ locals {
 }
 
 module "gke" {
-  source = "git::https://github.com/somtochiama/test-infra.git//tf-modules/gcp/gke?ref=gcp-workload-id"
+  source = "git::https://github.com/fluxcd/test-infra.git//tf-modules/gcp/gke"
 
   name      = local.name
   tags      = var.tags

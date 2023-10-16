@@ -10,7 +10,7 @@ locals {
 }
 
 module "eks" {
-  source = "git::https://github.com/somtochiama/test-infra.git//tf-modules/aws/eks?ref=gcp-workload-id"
+  source = "git::https://github.com/fluxcd/test-infra.git//tf-modules/aws/eks"
 
   name = local.name
   tags = var.tags
