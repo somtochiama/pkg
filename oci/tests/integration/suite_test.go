@@ -257,7 +257,7 @@ func TestMain(m *testing.M) {
 		testSA = os.Getenv(tfSAEnvVar)
 		testSANamespace := os.Getenv(tfSANamespaceEnvVar)
 		if testSA == "" || testSANamespace == "" {
-			panic( fmt.Sprintf("Both %s and  %s env variables need to be set when workload identity is enabled", tfSAEnvVar, tfSANamespaceEnvVar))
+			panic(fmt.Sprintf("Both %s and  %s env variables need to be set when workload identity is enabled", tfSAEnvVar, tfSANamespaceEnvVar))
 		}
 		sa := &corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
