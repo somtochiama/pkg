@@ -8,16 +8,16 @@ variable "tags" {
   default = {}
 }
 
-variable "k8s_serviceaccount_name" {
+variable "wi_k8s_sa_name" {
   type        = string
   default     = "test"
-  description = "Name of kubernetes service account to establish federated identity with"
+  description = "Name of kubernetes service account to establish federated identity with (For workload identity)"
 }
 
-variable "k8s_serviceaccount_ns" {
+variable "wi_k8s_sa_ns" {
   type        = string
   default     = "default"
-  description = "Namespace of kubernetes service account to establish federated identity with"
+  description = "Namespace of kubernetes service account to establish federated identity with (For workload identity)"
 }
 
 variable "enable_wi" {

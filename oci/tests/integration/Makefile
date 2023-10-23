@@ -27,10 +27,10 @@ test-gcp:
 	$(MAKE) test PROVIDER_ARG="-provider gcp"
 
 test-gcp-wi:
-	$(MAKE) test PROVIDER_ARG="-provider gcp -enable-wi" TF_VAR_enable_wi=true TF_VAR_k8s_serviceaccount_name=test-workload-id
+	$(MAKE) test PROVIDER_ARG="-provider gcp" TF_VAR_enable_wi=true
 
 test-aws-wi:
-	$(MAKE) test PROVIDER_ARG="-provider aws -enable-wi" TF_VAR_enable_wi=true TF_VAR_k8s_serviceaccount_name=test-workload-id
+	$(MAKE) test PROVIDER_ARG="-provider aws" TF_VAR_enable_wi=true
 
 test-azure-wi:
-	$(MAKE) test PROVIDER_ARG="-provider azure -enable-wi" TF_VAR_enable_wi=true TF_VAR_k8s_serviceaccount_name=test-workload-id
+	$(MAKE) test PROVIDER_ARG="-provider azure" TF_VAR_enable_wi=true

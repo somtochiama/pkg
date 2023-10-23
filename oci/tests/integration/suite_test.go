@@ -29,10 +29,10 @@ import (
 	"testing"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	tfjson "github.com/hashicorp/terraform-json"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/fluxcd/test-infra/tftestenv"
@@ -53,6 +53,10 @@ const (
 	kubeconfigPath = "./build/kubeconfig"
 
 	resultWaitTimeout = 30 * time.Second
+
+	tfSAEnvVar = "TF_VAR_wi_k8s_sa_name"
+
+	tfSANamespaceEnvVar = "TF_VAR_wi_k8s_sa_ns"
 )
 
 var (
@@ -70,9 +74,6 @@ var (
 
 	// verbose flag to enable output of terraform execution.
 	verbose = flag.Bool("verbose", false, "verbose output of the environment setup")
-
-	// enableWI flag to enable and test workload identity on the clusters
-	enableWI = flag.Bool("enable-wi", false, "use workload identity for clusters")
 
 	// testRepos is a map of registry common name and URL of the test
 	// repositories. This is used as the test cases to run the tests against.
@@ -92,9 +93,12 @@ var (
 
 	testAppImage string
 
-	// name of the service account that will be created and annotated for workload
-	// identity
-	testSA = "test-workload-id"
+	// testSA is the name of the service account that will be created and annotated for workload
+	// identity. It is set from the terraform variable (`TF_VAR_k8s_serviceaccount_name`)
+	testSA string
+
+	// enableWI is set when the TF_vAR_enable_wi is set, so the tests run for Workload Identtty
+	enableWI bool
 )
 
 // registryLoginFunc is used to perform registry login against a provider based
@@ -172,6 +176,10 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Failed to get provider config for %q", *targetProvider)
 	}
 
+	if os.Getenv("TF_VAR_enable_wi") == "true" {
+		enableWI = true
+	}
+
 	// Construct scheme to be added to the kubeclient.
 	scheme := runtime.NewScheme()
 
@@ -196,7 +204,6 @@ func TestMain(m *testing.M) {
 		tftestenv.WithExisting(*existing),
 		tftestenv.WithCreateKubeconfig(providerCfg.createKubeconfig),
 	}
-
 	testEnv, err = tftestenv.New(ctx, scheme, providerCfg.terraformPath, kubeconfigPath, envOpts...)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to provision the test infrastructure: %v", err))
@@ -246,11 +253,16 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("Failed to create and push images: %v", err))
 	}
 
-	if *enableWI {
+	if enableWI {
+		testSA = os.Getenv(tfSAEnvVar)
+		testSANamespace := os.Getenv(tfSANamespaceEnvVar)
+		if testSA == "" || testSANamespace == "" {
+			panic( fmt.Sprintf("Both %s and  %s env variables need to be set when workload identity is enabled", tfSAEnvVar, tfSANamespaceEnvVar))
+		}
 		sa := &corev1.ServiceAccount{
-			ObjectMeta:                   metav1.ObjectMeta{
-				Name: testSA,
-				Namespace: "default",
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      testSA,
+				Namespace: testSANamespace,
 			},
 		}
 
@@ -278,28 +290,27 @@ func getProviderConfig(provider string) *ProviderConfig {
 	switch provider {
 	case "aws":
 		return &ProviderConfig{
-			terraformPath:     terraformPathAWS,
-			registryLogin:     registryLoginECR,
-			pushAppTestImages: pushAppTestImagesECR,
-			createKubeconfig:  createKubeconfigEKS,
+			terraformPath:                terraformPathAWS,
+			registryLogin:                registryLoginECR,
+			pushAppTestImages:            pushAppTestImagesECR,
+			createKubeconfig:             createKubeconfigEKS,
 			getServiceAccountAnnotations: getServiceAccountAnnotationAWS,
 		}
 	case "azure":
 		return &ProviderConfig{
-			terraformPath:     terraformPathAzure,
-			registryLogin:     registryLoginACR,
-			pushAppTestImages: pushAppTestImagesACR,
-			createKubeconfig:  createKubeConfigAKS,
+			terraformPath:                terraformPathAzure,
+			registryLogin:                registryLoginACR,
+			pushAppTestImages:            pushAppTestImagesACR,
+			createKubeconfig:             createKubeConfigAKS,
 			getServiceAccountAnnotations: getServiceAccountAnnotationAzure,
 		}
 	case "gcp":
 		return &ProviderConfig{
-			terraformPath:     terraformPathGCP,
-			registryLogin:     registryLoginGCR,
-			pushAppTestImages: pushAppTestImagesGCR,
-			createKubeconfig:  createKubeconfigGKE,
+			terraformPath:                terraformPathGCP,
+			registryLogin:                registryLoginGCR,
+			pushAppTestImages:            pushAppTestImagesGCR,
+			createKubeconfig:             createKubeconfigGKE,
 			getServiceAccountAnnotations: getServiceAccountAnnotationGCP,
-
 		}
 	}
 	return nil

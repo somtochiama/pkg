@@ -50,7 +50,7 @@ resource "azurerm_federated_identity_credential" "federated-identity2" {
   audience            = ["api://AzureADTokenExchange"]
   issuer              = module.aks.cluster_oidc_url
   parent_id           = azurerm_user_assigned_identity.wi-id[0].id
-  subject             = "system:serviceaccount:${var.k8s_serviceaccount_ns}:${var.k8s_serviceaccount_name}"
+  subject             = "system:serviceaccount:${var.wi_k8s_sa_ns}:${var.wi_k8s_sa_name}"
 
   depends_on = [module.aks]
 }

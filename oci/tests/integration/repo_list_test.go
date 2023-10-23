@@ -92,7 +92,7 @@ func testImageRepositoryListTags(t *testing.T, args []string) {
 	}
 	job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
 
-	if *enableWI {
+	if enableWI {
 		job.Spec.Template.Spec.ServiceAccountName = testSA
 
 		// azure requires this label on the pod for workload identity to work.

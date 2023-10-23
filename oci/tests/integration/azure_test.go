@@ -73,7 +73,7 @@ func pushAppTestImagesACR(ctx context.Context, localImgs map[string]string, outp
 func getServiceAccountAnnotationAzure(output map[string]*tfjson.StateOutput) (map[string]string, error) {
 	clientID := output["user_identity_client_id"].Value.(string)
 	if clientID == "" {
-		return nil, fmt.Errorf("no client id in terraform output")
+		return nil, fmt.Errorf("no Azure client id in terraform output")
 	}
 
 	return map[string]string{

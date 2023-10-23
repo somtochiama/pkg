@@ -53,5 +53,5 @@ resource "google_service_account_iam_member" "main" {
   count              = var.enable_wi ? 1 : 0
   service_account_id = google_service_account.test[0].name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.gcp_project_id}.svc.id.goog[${var.k8s_serviceaccount_ns}/${var.k8s_serviceaccount_name}]"
+  member             = "serviceAccount:${var.gcp_project_id}.svc.id.goog[${var.wi_k8s_sa_ns}/${var.wi_k8s_sa_name}]"
 }

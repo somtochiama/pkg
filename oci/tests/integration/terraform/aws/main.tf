@@ -45,7 +45,7 @@ resource "aws_iam_role" "assume_role" {
   name  = "test-wi-ecr"
   assume_role_policy = templatefile("oidc_assume_role_policy.json", {
     OIDC_ARN  = module.eks.cluster_oidc_arn, OIDC_URL = replace(module.eks.cluster_oidc_url, "https://", ""),
-    NAMESPACE = var.k8s_serviceaccount_ns, SA_NAME = var.k8s_serviceaccount_name
+    NAMESPACE = var.wi_k8s_sa_ns, SA_NAME = var.wi_k8s_sa_name
   })
   tags = var.tags
 }
