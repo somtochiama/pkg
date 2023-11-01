@@ -52,10 +52,3 @@ resource "aws_iam_role" "assume_role" {
   managed_policy_arns = ["arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"]
   tags                = var.tags
 }
-
-#resource "aws_iam_role_policy_attachment" "aws_node" {
-#  count      = var.enable_wi ? 1 : 0
-#  role       = aws_iam_role.assume_role[0].name
-#  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-#  depends_on = [aws_iam_role.assume_role]
-#}

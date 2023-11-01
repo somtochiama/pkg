@@ -29,12 +29,12 @@ import (
 	"testing"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	tfjson "github.com/hashicorp/terraform-json"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/fluxcd/test-infra/tftestenv"
 )
@@ -102,7 +102,7 @@ var (
 	// identity. It is set from the terraform variable (`TF_VAR_k8s_serviceaccount_name`)
 	wiServiceAccount string
 
-	// enableWI is set when the TF_vAR_enable_wi is set, so the tests run for Workload Identtty
+	// enableWI is set to true when the TF_vAR_enable_wi is set to "true", so the tests run for Workload Identtty
 	enableWI bool
 )
 
@@ -275,26 +275,26 @@ func getProviderConfig(provider string) *ProviderConfig {
 	switch provider {
 	case "aws":
 		return &ProviderConfig{
-			terraformPath:                terraformPathAWS,
-			registryLogin:                registryLoginECR,
-			pushAppTestImages:            pushAppTestImagesECR,
-			createKubeconfig:             createKubeconfigEKS,
+			terraformPath:       terraformPathAWS,
+			registryLogin:       registryLoginECR,
+			pushAppTestImages:   pushAppTestImagesECR,
+			createKubeconfig:    createKubeconfigEKS,
 			getWISAtAnnotations: getWISAtAnnotationsAWS,
 		}
 	case "azure":
 		return &ProviderConfig{
-			terraformPath:                terraformPathAzure,
-			registryLogin:                registryLoginACR,
-			pushAppTestImages:            pushAppTestImagesACR,
-			createKubeconfig:             createKubeConfigAKS,
+			terraformPath:       terraformPathAzure,
+			registryLogin:       registryLoginACR,
+			pushAppTestImages:   pushAppTestImagesACR,
+			createKubeconfig:    createKubeConfigAKS,
 			getWISAtAnnotations: getWISAtAnnotationsAzure,
 		}
 	case "gcp":
 		return &ProviderConfig{
-			terraformPath:                terraformPathGCP,
-			registryLogin:                registryLoginGCR,
-			pushAppTestImages:            pushAppTestImagesGCR,
-			createKubeconfig:             createKubeconfigGKE,
+			terraformPath:       terraformPathGCP,
+			registryLogin:       registryLoginGCR,
+			pushAppTestImages:   pushAppTestImagesGCR,
+			createKubeconfig:    createKubeconfigGKE,
 			getWISAtAnnotations: getWISAtAnnotationsGCP,
 		}
 	}
