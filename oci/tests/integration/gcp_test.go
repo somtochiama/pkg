@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	// iamAnnotation is the key for the annotation on the kubernetes serviceaccount
-	iamAnnotation = "iam.gke.io/gcp-service-account"
+	// gkeIAMAnnotation is the key for the annotation on the kubernetes serviceaccount
+	// with the email address of the IAM service account on GCP.
+	gcpIAMAnnotation = "iam.gke.io/gcp-service-account"
 )
 
 // createKubeconfigGKE constructs kubeconfig from the terraform state output at
@@ -79,13 +80,13 @@ func pushAppTestImagesGCR(ctx context.Context, localImgs map[string]string, outp
 }
 
 // getServiceAccountAnnotationGCP returns workload identity annotations for a kubernetes ServiceAccount
-func getServiceAccountAnnotationGCP(output map[string]*tfjson.StateOutput) (map[string]string, error) {
-	saEmail := output["iam_serviceaccount_email"].Value.(string)
+func getWISAtAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	saEmail := output["wi_iam_serviceaccount_email"].Value.(string)
 	if saEmail == "" {
 		return nil, fmt.Errorf("no GCP serviceaccount email in terraform output")
 	}
 
 	return map[string]string{
-		iamAnnotation: saEmail,
+		gcpIAMAnnotation: saEmail,
 	}, nil
 }

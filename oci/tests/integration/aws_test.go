@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	roleArnAnnotation = "eks.amazonaws.com/role-arn"
+	eksRoleArnAnnotation = "eks.amazonaws.com/role-arn"
 )
 
 // createKubeconfigEKS constructs kubeconfig from the terraform state output at
@@ -86,15 +86,15 @@ func pushAppTestImagesECR(ctx context.Context, localImgs map[string]string, outp
 	return tftestenv.PushTestAppImagesECR(ctx, localImgs, remoteImage)
 }
 
-// getServiceAccountAnnotationAWS returns annotations for a kubernetes service account required to configure IRSA on AWS.
-// It gets the role ARN from the terraform output and returns the map[eks.amazonaws.com/role-arn=<arn>]
-func getServiceAccountAnnotationAWS(output map[string]*tfjson.StateOutput) (map[string]string, error) {
-	iamARN := output["aws_iam_arn"].Value.(string)
+// getWISAtAnnotationsAWS returns annotations for a kubernetes service account required to configure IRSA / workload
+// identity on AWS. It gets the role ARN from the terraform output and returns the map[eks.amazonaws.com/role-arn=<arn>]
+func getWISAtAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	iamARN := output["aws_wi_iam_arn"].Value.(string)
 	if iamARN == "" {
 		return nil, fmt.Errorf("no AWS iam role arn in terraform output")
 	}
 
 	return map[string]string{
-		roleArnAnnotation: iamARN,
+		eksRoleArnAnnotation: iamARN,
 	}, nil
 }

@@ -30,7 +30,7 @@ import (
 
 const (
 	// clientIdAnnotation is the key for the annotation on the kubernetes serviceaccount
-	clientIdAnnotation = "azure.workload.identity/client-id"
+	azureWIClientIdAnnotation = "azure.workload.identity/client-id"
 )
 
 // createKubeConfigAKS constructs kubeconfig for an AKS cluster from the
@@ -68,15 +68,16 @@ func pushAppTestImagesACR(ctx context.Context, localImgs map[string]string, outp
 	return tftestenv.PushTestAppImagesACR(ctx, localImgs, registryURL)
 }
 
-// getServiceAccountAnnotationAzure returns azure workload identity's annotations for
+// getWISAtAnnotationsAzure returns azure workload identity's annotations for
 // kubernetes service account using output from terraform.
-func getServiceAccountAnnotationAzure(output map[string]*tfjson.StateOutput) (map[string]string, error) {
-	clientID := output["user_identity_client_id"].Value.(string)
+// https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview?tabs=dotnet#pod-annotations
+func getWISAtAnnotationsAzure(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	clientID := output["workload_identity_client_id"].Value.(string)
 	if clientID == "" {
 		return nil, fmt.Errorf("no Azure client id in terraform output")
 	}
 
 	return map[string]string{
-		clientIdAnnotation: clientID,
+		azureWIClientIdAnnotation: clientID,
 	}, nil
 }

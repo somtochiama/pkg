@@ -38,18 +38,18 @@ module "acr" {
 resource "azurerm_user_assigned_identity" "wi-id" {
   count               = var.enable_wi ? 1 : 0
   location            = var.azure_location
-  name                = "test-workload-id"
+  name                = local.name
   resource_group_name = module.aks.resource_group
   tags                = var.tags
 }
 
 resource "azurerm_federated_identity_credential" "federated-identity2" {
   count               = var.enable_wi ? 1 : 0
-  name                = "test-wi"
+  name                = local.name
   resource_group_name = module.aks.resource_group
   audience            = ["api://AzureADTokenExchange"]
   issuer              = module.aks.cluster_oidc_url
-  parent_id           = azurerm_user_assigned_identity.wi-id[0].id
+  parent_id           = azurerm_user_assigned_identity.wi-id[count.index].id
   subject             = "system:serviceaccount:${var.wi_k8s_sa_ns}:${var.wi_k8s_sa_name}"
 
   depends_on = [module.aks]

@@ -66,6 +66,11 @@ the tests:
 - `Microsoft.ContainerRegistry/*`
 - `Microsoft.ContainerService/*`
 
+Additional permissions needed when Workload Identity is enabled:
+
+- "Microsoft.ManagedIdentity/userAssignedIdentities/{Read,Write,Delete}"
+  "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/{Read,Write,Delete}"
+
 #### IAM and CI setup
 
 To create the necessary IAM role with all the permissions, set up CI secrets and
@@ -166,6 +171,10 @@ tests:
 - Service Account User - `roles/iam.serviceAccountUser`
 - Storage Admin - `roles/storage.admin`
 
+If workload identity is enabled, the following role is also needed:
+
+- Project IAM Admin
+
 #### IAM and CI setup
 
 To create the necessary IAM role with all the permissions, set up CI secrets and
@@ -227,6 +236,19 @@ TEST_IMG=fluxcd/testapp:test go test -timeout 30m -v ./ -verbose -retain -provid
 2022/07/29 02:06:51 Init Terraform
 ...
 ```
+
+## Workload Identity
+
+By default, the tests use node identity for authentication. To run the integration tests on clusters with workload identity
+enabled for any of the providers. The following terraform variables need to be set.
+
+```shell
+export TF_VAR_wi_k8s_sa_name=
+export TF_VAR_wi_k8s_sa_ns=
+export TF_VAR_enable_wi=
+```
+
+They have been included in the `.env.sample` and you can simply uncomment it.
 
 ## Debugging the tests
 

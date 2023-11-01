@@ -25,17 +25,17 @@ variable "tags" {
 variable "wi_k8s_sa_name" {
   type        = string
   default     = "test"
-  description = "Name of kubernetes service account to be bound to GCP IAM serviceaccount (For workload identity)"
+  description = "Name of kubernetes service account to be bound to GCP IAM service account (For workload identity)"
 }
 
 variable "wi_k8s_sa_ns" {
   type        = string
   default     = "default"
-  description = "Namespace of kubernetes service account to be bound to GCP IAM serviceaccount (For workload identity)"
+  description = "Namespace of kubernetes service account to be bound to GCP IAM service account (For workload identity)"
 }
 
 variable "enable_wi" {
   type        = bool
   default     = false
-  description = "Enable workload identity on cluster and create a federated identity with serviceaccount"
+  description = "Enable workload identity on cluster and create a federated identity with service account"
 }

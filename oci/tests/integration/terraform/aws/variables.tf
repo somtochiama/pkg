@@ -27,5 +27,5 @@ variable "wi_k8s_sa_ns" {
 variable "enable_wi" {
   type        = bool
   default     = false
-  description = "If set to true, will creat IAM role and policy for workload identity"
+  description = "If set to true, will create IAM role and policy for workload identity"
 }

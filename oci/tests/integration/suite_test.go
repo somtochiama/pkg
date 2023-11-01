@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	tfjson "github.com/hashicorp/terraform-json"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -54,9 +55,13 @@ const (
 
 	resultWaitTimeout = 30 * time.Second
 
-	tfSAEnvVar = "TF_VAR_wi_k8s_sa_name"
+	// envVarWISAName is the name of the terraform environment variable containing
+	// the service account name used for workload identity.
+	envVarWISAName = "TF_VAR_wi_k8s_sa_name"
 
-	tfSANamespaceEnvVar = "TF_VAR_wi_k8s_sa_ns"
+	// envVarWISANamespace is the name of the terraform environment variable containing
+	// the service account namespace used for workload identity.
+	envVarWISANamespace = "TF_VAR_wi_k8s_sa_ns"
 )
 
 var (
@@ -93,9 +98,9 @@ var (
 
 	testAppImage string
 
-	// testSA is the name of the service account that will be created and annotated for workload
+	// wiServiceAccount is the name of the service account that will be created and annotated for workload
 	// identity. It is set from the terraform variable (`TF_VAR_k8s_serviceaccount_name`)
-	testSA string
+	wiServiceAccount string
 
 	// enableWI is set when the TF_vAR_enable_wi is set, so the tests run for Workload Identtty
 	enableWI bool
@@ -113,9 +118,9 @@ type registryLoginFunc func(ctx context.Context, output map[string]*tfjson.State
 // pushed to a corresponding registry repository for the image.
 type pushTestImages func(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error)
 
-// getServiceAccountAnnotations returns cloud provider specific annotations for the
+// getWISAtAnnotations returns cloud provider specific annotations for the
 // service account when workload identity is used on the cluster.
-type getServiceAccountAnnotations func(output map[string]*tfjson.StateOutput) (map[string]string, error)
+type getWISAtAnnotations func(output map[string]*tfjson.StateOutput) (map[string]string, error)
 
 // ProviderConfig is the test configuration of a supported cloud provider to run
 // the tests against.
@@ -129,9 +134,9 @@ type ProviderConfig struct {
 	createKubeconfig tftestenv.CreateKubeconfig
 	// pushAppTestImages is used to push flux test images to a remote registry.
 	pushAppTestImages pushTestImages
-	// getServiceAccountAnnotations is used to return the provider specific annotations
+	// getWISAtAnnotations is used to return the provider specific annotations
 	// for the service account when using workload identity.
-	getServiceAccountAnnotations getServiceAccountAnnotations
+	getWISAtAnnotations getWISAtAnnotations
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
@@ -174,10 +179,6 @@ func TestMain(m *testing.M) {
 	providerCfg := getProviderConfig(*targetProvider)
 	if providerCfg == nil {
 		log.Fatalf("Failed to get provider config for %q", *targetProvider)
-	}
-
-	if os.Getenv("TF_VAR_enable_wi") == "true" {
-		enableWI = true
 	}
 
 	// Construct scheme to be added to the kubeclient.
@@ -253,33 +254,17 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("Failed to create and push images: %v", err))
 	}
 
+	enableWI = os.Getenv("TF_VAR_enable_wi") == "true"
 	if enableWI {
-		testSA = os.Getenv(tfSAEnvVar)
-		testSANamespace := os.Getenv(tfSANamespaceEnvVar)
-		if testSA == "" || testSANamespace == "" {
-			panic(fmt.Sprintf("Both %s and  %s env variables need to be set when workload identity is enabled", tfSAEnvVar, tfSANamespaceEnvVar))
-		}
-		sa := &corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      testSA,
-				Namespace: testSANamespace,
-			},
-		}
-
-		annotations, err := providerCfg.getServiceAccountAnnotations(output)
+		log.Println("Running tests with workload identity enabled")
+		annotations, err := providerCfg.getWISAtAnnotations(output)
 		if err != nil {
 			panic(fmt.Sprintf("Failed to get service account func for workload identity: %v", err))
 		}
 
-		sa.Annotations = annotations
-		if err := testEnv.Client.Create(ctx, sa); err != nil {
-			panic(fmt.Sprintf("Failed to create service account for workload identity: %v", err))
+		if err := creatWorkloadIDServiceAccount(ctx, annotations); err != nil {
+			panic(err)
 		}
-		defer func() {
-			if err := testEnv.Client.Delete(ctx, sa); err != nil {
-				log.Printf("failed to delete service account")
-			}
-		}()
 	}
 
 	exitCode = m.Run()
@@ -294,7 +279,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			registryLogin:                registryLoginECR,
 			pushAppTestImages:            pushAppTestImagesECR,
 			createKubeconfig:             createKubeconfigEKS,
-			getServiceAccountAnnotations: getServiceAccountAnnotationAWS,
+			getWISAtAnnotations: getWISAtAnnotationsAWS,
 		}
 	case "azure":
 		return &ProviderConfig{
@@ -302,7 +287,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			registryLogin:                registryLoginACR,
 			pushAppTestImages:            pushAppTestImagesACR,
 			createKubeconfig:             createKubeConfigAKS,
-			getServiceAccountAnnotations: getServiceAccountAnnotationAzure,
+			getWISAtAnnotations: getWISAtAnnotationsAzure,
 		}
 	case "gcp":
 		return &ProviderConfig{
@@ -310,8 +295,37 @@ func getProviderConfig(provider string) *ProviderConfig {
 			registryLogin:                registryLoginGCR,
 			pushAppTestImages:            pushAppTestImagesGCR,
 			createKubeconfig:             createKubeconfigGKE,
-			getServiceAccountAnnotations: getServiceAccountAnnotationGCP,
+			getWISAtAnnotations: getWISAtAnnotationsGCP,
 		}
 	}
+	return nil
+}
+
+// creatWorkloadIDServiceAccount creates the service account (name and namespace specified in the terraform
+// variables) with the annotations passed into the function.
+//
+// TODO: move creation of serviceaccount to terraform
+func creatWorkloadIDServiceAccount(ctx context.Context, annotations map[string]string) error {
+	wiServiceAccount = os.Getenv(envVarWISAName)
+	wiSANamespace := os.Getenv(envVarWISANamespace)
+	if wiServiceAccount == "" || wiSANamespace == "" {
+		return fmt.Errorf("both %s and  %s env variables need to be set when workload identity is enabled", envVarWISAName, envVarWISANamespace)
+	}
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      wiServiceAccount,
+			Namespace: wiSANamespace,
+		},
+	}
+
+	sa.Annotations = annotations
+	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, sa, func() error {
+		sa.Annotations = annotations
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create service account for workload identity: %w", err)
+	}
+
 	return nil
 }

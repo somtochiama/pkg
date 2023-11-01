@@ -16,7 +16,7 @@ module "gke" {
   name      = local.name
   tags      = var.tags
   enable_wi = var.enable_wi
-  oauth_scopes = var.enable_wi ? [] : [
+  oauth_scopes = var.enable_wi ? null : [
     "https://www.googleapis.com/auth/cloud-platform"
   ]
 }
@@ -30,7 +30,7 @@ module "gcr" {
 
 resource "google_service_account" "test" {
   count      = var.enable_wi ? 1 : 0
-  account_id = "test-workload-id"
+  account_id = local.name
   project    = var.gcp_project_id
 }
 
@@ -38,20 +38,19 @@ resource "google_project_iam_member" "admin-account-iam" {
   count   = var.enable_wi ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/artifactregistry.repoAdmin"
-  member  = "serviceAccount:${google_service_account.test[0].email}"
+  member  = "serviceAccount:${google_service_account.test[count.index].email}"
 }
 
 resource "google_project_iam_member" "gcr-account-iam" {
   count   = var.enable_wi ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/containerregistry.ServiceAgent"
-  member  = "serviceAccount:${google_service_account.test[0].email}"
+  member  = "serviceAccount:${google_service_account.test[count.index].email}"
 }
-
 
 resource "google_service_account_iam_member" "main" {
   count              = var.enable_wi ? 1 : 0
-  service_account_id = google_service_account.test[0].name
+  service_account_id = google_service_account.test[count.index].name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.gcp_project_id}.svc.id.goog[${var.wi_k8s_sa_ns}/${var.wi_k8s_sa_name}]"
 }
