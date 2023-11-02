@@ -29,9 +29,10 @@ module "gcr" {
 }
 
 resource "google_service_account" "test" {
-  count      = var.enable_wi ? 1 : 0
-  account_id = local.name
-  project    = var.gcp_project_id
+  count       = var.enable_wi ? 1 : 0
+  account_id  = local.name
+  project     = var.gcp_project_id
+  description = "Service account for testing Workload integration for OCI repositories in Flux"
 }
 
 resource "google_project_iam_member" "admin-account-iam" {

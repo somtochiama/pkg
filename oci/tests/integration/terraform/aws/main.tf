@@ -41,8 +41,9 @@ module "test_app_ecr" {
 }
 
 resource "aws_iam_role" "assume_role" {
-  count = var.enable_wi ? 1 : 0
-  name  = local.name
+  count       = var.enable_wi ? 1 : 0
+  name        = local.name
+  description = "IAM role used for testing Workload integration for OCI repositories in Flux"
   assume_role_policy = templatefile("oidc_assume_role_policy.json", {
     OIDC_ARN  = module.eks.cluster_oidc_arn,
     OIDC_URL  = replace(module.eks.cluster_oidc_url, "https://", ""),
