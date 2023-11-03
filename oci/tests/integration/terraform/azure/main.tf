@@ -26,7 +26,8 @@ module "acr" {
 
   name     = local.name
   location = var.azure_location
-  # give permissions to managed identity if workload identity is enabled
+  // By default, azure nodes have no access to ACR. We have to pass the AKS principal id to the modules
+  // Additionally, when workload identity is enabled, we also want to give permissions to managed identity.
   aks_principal_id = var.enable_wi ? [module.aks.principal_id, azurerm_user_assigned_identity.wi-id[0].principal_id] : [module.aks.principal_id]
   resource_group   = module.aks.resource_group
   admin_enabled    = true

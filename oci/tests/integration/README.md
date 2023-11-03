@@ -68,8 +68,8 @@ the tests:
 
 Additional permissions needed when Workload Identity is enabled:
 
-- "Microsoft.ManagedIdentity/userAssignedIdentities/{Read,Write,Delete}"
-  "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/{Read,Write,Delete}"
+- `Microsoft.ManagedIdentity/userAssignedIdentities/{Read,Write,Delete}`
+- `Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/{Read,Write,Delete}`
 
 #### IAM and CI setup
 
@@ -97,7 +97,13 @@ module "azure_gh_actions" {
     "Microsoft.Authorization/roleAssignments/Write",
     "Microsoft.Authorization/roleAssignments/Delete",
     "Microsoft.ContainerRegistry/*",
-    "Microsoft.ContainerService/*"
+    "Microsoft.ContainerService/*",
+    "Microsoft.ManagedIdentity/userAssignedIdentities/Read",
+    "Microsoft.ManagedIdentity/userAssignedIdentities/Write",
+    "Microsoft.ManagedIdentity/userAssignedIdentities/Delete",
+    "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/Read",
+    "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/Write",
+    "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/Delete"
   ]
   azure_location = "eastus"
 
@@ -173,7 +179,7 @@ tests:
 
 If workload identity is enabled, the following role is also needed:
 
-- Project IAM Admin
+- Project IAM Admin - `roles/resourcemanager.projectIamAdmin`
 
 #### IAM and CI setup
 
@@ -203,7 +209,8 @@ module "gcp_gh_actions" {
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountTokenCreator",
     "roles/iam.serviceAccountUser",
-    "roles/storage.admin"
+    "roles/storage.admin",
+    "roles/resourcemanager.projectIamAdmin"
   ]
 
   github_project = "pkg"
