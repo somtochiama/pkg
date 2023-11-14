@@ -109,7 +109,9 @@ func (c *Client) Pull(ctx context.Context, url, outPath string, opts ...PullOpti
 	return meta, nil
 }
 
-// extractLayer extracts the contents of a blob to the given path.
+// extractLayer extracts the contents of a io.Reader to the given path.
+// if the LayerType is LayerTypeTarball, it will untar to a directory,
+// if the LayerType is LayerTypeStatic, it will copy to a file.
 func extractLayer(path string, blob io.Reader, layerType LayerType) error {
 	switch layerType {
 	case LayerTypeTarball:
@@ -130,7 +132,8 @@ func extractLayer(path string, blob io.Reader, layerType LayerType) error {
 	}
 }
 
-// Peeker is an io.Reader that also implements Peek a la bufio.Reader.
+// Peeker implements a Peek interface that returns the first n bytes without advancing
+// some underlying pointer
 type Peeker interface {
 	Peek(n int) ([]byte, error)
 }
