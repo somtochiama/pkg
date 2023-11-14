@@ -17,8 +17,12 @@ limitations under the License.
 package client
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -26,8 +30,30 @@ import (
 	"github.com/fluxcd/pkg/tar"
 )
 
-// Pull downloads an artifact from an OCI repository and extracts the content to the given directory.
-func (c *Client) Pull(ctx context.Context, url, outDir string) (*Metadata, error) {
+// PullOptions contains options for pushing a layer.
+type PullOptions struct {
+	layerType LayerType
+}
+
+// PullOption is a function for configuring PushOptions.
+type PullOption func(o *PullOptions)
+
+// WithPullLayerType sets the layer type of the layer that is being pulled.
+func WithPullLayerType(l LayerType) PullOption {
+	return func(o *PullOptions) {
+		o.layerType = l
+	}
+}
+
+// Pull downloads an artifact from an OCI repository and extracts the content.
+// It untar or copies the content to the given outPath depending on the layerType.
+// If no layer type is given, it tries to determine the right type by checking compressed content of the layer
+// for gzip headers
+func (c *Client) Pull(ctx context.Context, url, outPath string, opts ...PullOption) (*Metadata, error) {
+	o := &PullOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
 	ref, err := name.ParseReference(url)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
@@ -61,14 +87,66 @@ func (c *Client) Pull(ctx context.Context, url, outDir string) (*Metadata, error
 		return nil, fmt.Errorf("no layers found in artifact")
 	}
 
-	blob, err := layers[0].Compressed()
+	var blob io.Reader
+	blob, err = layers[0].Compressed()
 	if err != nil {
 		return nil, fmt.Errorf("extracting first layer failed: %w", err)
 	}
-
-	if err = tar.Untar(blob, outDir, tar.WithMaxUntarSize(-1), tar.WithSkipSymlinks()); err != nil {
-		return nil, fmt.Errorf("failed to untar first layer: %w", err)
+	if o.layerType == "" {
+		bufReader := bufio.NewReader(blob)
+		blob = bufReader
+		if ok, _ := isGzipBlob(bufReader); ok {
+			o.layerType = LayerTypeTarball
+		} else {
+			o.layerType = LayerTypeStatic
+		}
 	}
 
+	err = extractLayer(outPath, blob, o.layerType)
+	if err != nil {
+		return nil, err
+	}
 	return meta, nil
+}
+
+// extractLayer extracts the contents of a blob to the given path.
+func extractLayer(path string, blob io.Reader, layerType LayerType) error {
+	switch layerType {
+	case LayerTypeTarball:
+		return tar.Untar(blob, path, tar.WithMaxUntarSize(-1), tar.WithSkipSymlinks())
+	case LayerTypeStatic:
+		f, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(f, blob)
+		if err != nil {
+			return fmt.Errorf("error copying layer content: %s", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported layer type: '%s'", layerType)
+	}
+}
+
+// Peeker is an io.Reader that also implements Peek a la bufio.Reader.
+type Peeker interface {
+	Peek(n int) ([]byte, error)
+}
+
+// isGzipBlob reads the first two bytes from an io.Reader and
+// checks that they are equal to the expected gzip file headers.
+func isGzipBlob(buf Peeker) (bool, error) {
+	// https://github.com/google/go-containerregistry/blob/a54d64203cffcbf94146e04069aae4a97f228ee2/internal/gzip/zip.go#L28
+	var gzipMagicHeader = []byte{'\x1f', '\x8b'}
+
+	b, err := buf.Peek(len(gzipMagicHeader))
+	if err != nil {
+		if err == io.EOF {
+			return false, nil
+		}
+		return false, err
+	}
+	return bytes.Equal(b, gzipMagicHeader), nil
 }

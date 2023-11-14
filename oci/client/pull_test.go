@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -32,53 +33,133 @@ import (
 )
 
 func Test_PullAnyTarball(t *testing.T) {
-	g := NewWithT(t)
 	ctx := context.Background()
 	c := NewClient(DefaultOptions())
-	testDir := "testdata/artifact"
 
-	tag := "latest"
 	repo := "test-no-annotations" + randStringRunes(5)
+	tests := []struct {
+		name             string
+		tag              string
+		pushImage        func(url string, path string) error
+		contentPath      string
+		layerType        LayerType
+		expectedMetadata Metadata
+	}{
+		{
+			name:        "tarball artifact not pushed by flux",
+			tag:         "not-flux",
+			contentPath: "testdata/artifact",
+			pushImage: func(url string, path string) error {
+				artifact := filepath.Join(t.TempDir(), "artifact.tgz")
+				err := build(artifact, path, nil)
+				if err != nil {
+					return err
+				}
 
-	dst := fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag)
+				img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
+				img = mutate.ConfigMediaType(img, oci.CanonicalConfigMediaType)
 
-	artifact := filepath.Join(t.TempDir(), "artifact.tgz")
-	g.Expect(build(artifact, testDir, nil)).To(Succeed())
+				layer, err := tarball.LayerFromFile(artifact, tarball.WithMediaType("application/vnd.acme.some.content.layer.v1.tar+gzip"))
+				if err != nil {
+					return err
+				}
 
-	img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
-	img = mutate.ConfigMediaType(img, oci.CanonicalConfigMediaType)
+				img, err = mutate.Append(img, mutate.Addendum{Layer: layer})
+				if err != nil {
+					return err
+				}
 
-	layer, err := tarball.LayerFromFile(artifact, tarball.WithMediaType("application/vnd.acme.some.content.layer.v1.tar+gzip"))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	img, err = mutate.Append(img, mutate.Addendum{Layer: layer})
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Expect(crane.Push(img, dst, c.optionsWithContext(ctx)...)).ToNot(HaveOccurred())
-
-	extractTo := filepath.Join(t.TempDir(), "artifact")
-	m, err := c.Pull(ctx, dst, extractTo)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(m).ToNot(BeNil())
-	g.Expect(m.Annotations).To(BeEmpty())
-	g.Expect(m.Created).To(BeEmpty())
-	g.Expect(m.Revision).To(BeEmpty())
-	g.Expect(m.Source).To(BeEmpty())
-	g.Expect(m.URL).To(Equal(dst))
-	g.Expect(m.Digest).ToNot(BeEmpty())
-	g.Expect(extractTo).To(BeADirectory())
-
-	for _, entry := range []string{
-		"deploy",
-		"deploy/repo.yaml",
-		"deployment.yaml",
-		"ignore-dir",
-		"ignore-dir/deployment.yaml",
-		"ignore.txt",
-		"somedir",
-		"somedir/repo.yaml",
-		"somedir/git/repo.yaml",
-	} {
-		g.Expect(extractTo + "/" + entry).To(Or(BeAnExistingFile(), BeADirectory()))
+				dst := fmt.Sprintf("%s/%s:%s", dockerReg, repo, "not-flux")
+				err = crane.Push(img, dst, c.optionsWithContext(ctx)...)
+				if err != nil {
+					return err
+				}
+				return err
+			},
+			layerType: LayerTypeTarball,
+		},
+		{
+			name:        "tarball artifact pushed by flux",
+			tag:         "flux",
+			contentPath: "testdata/artifact",
+			pushImage: func(url string, path string) error {
+				meta := Metadata{
+					Created: "2023-11-14T21:42:50Z",
+					Source:  "fluxcd/pkg",
+				}
+				_, err := c.Push(ctx, url, path, WithPushMetadata(meta))
+				return err
+			},
+			expectedMetadata: Metadata{
+				Created: "2023-11-14T21:42:50Z",
+				Source:  "fluxcd/pkg",
+			},
+			layerType: LayerTypeTarball,
+		},
+		{
+			name:        "static artifact pushed by flux",
+			tag:         "flux",
+			contentPath: "testdata/artifact/deployment.yaml",
+			pushImage: func(url string, path string) error {
+				meta := Metadata{
+					Created: "2023-11-14T21:42:50Z",
+					Source:  "fluxcd/pkg",
+				}
+				_, err := c.Push(ctx, url, path, WithPushLayerType(LayerTypeStatic), WithPushMetadata(meta))
+				return err
+			},
+			expectedMetadata: Metadata{
+				Created: "2023-11-14T21:42:50Z",
+				Source:  "fluxcd/pkg",
+			},
+			layerType: LayerTypeStatic,
+		},
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dst := fmt.Sprintf("%s/%s:%s", dockerReg, repo, tt.tag)
+			g.Expect(tt.pushImage(dst, tt.contentPath)).To(Succeed())
+
+			extractTo := filepath.Join(t.TempDir(), "artifact")
+
+			m, err := c.Pull(ctx, dst, extractTo)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(m).ToNot(BeNil())
+			g.Expect(m.ToAnnotations()).To(Equal(tt.expectedMetadata.ToAnnotations()))
+			g.Expect(m.URL).To(Equal(dst))
+			g.Expect(m.Digest).ToNot(BeEmpty())
+
+			switch tt.layerType {
+			case LayerTypeTarball:
+				g.Expect(extractTo).To(BeADirectory())
+				for _, entry := range []string{
+					"deploy",
+					"deploy/repo.yaml",
+					"deployment.yaml",
+					"ignore-dir",
+					"ignore-dir/deployment.yaml",
+					"ignore.txt",
+					"somedir",
+					"somedir/repo.yaml",
+					"somedir/git/repo.yaml",
+				} {
+					g.Expect(extractTo + "/" + entry).To(Or(BeAnExistingFile(), BeADirectory()))
+				}
+			case LayerTypeStatic:
+				g.Expect(extractTo).To(BeARegularFile())
+
+				expected, err := os.ReadFile(tt.contentPath)
+				g.Expect(err).ToNot(HaveOccurred())
+
+				got, err := os.ReadFile(extractTo)
+				g.Expect(err).ToNot(HaveOccurred())
+
+				g.Expect(expected).To(Equal(got))
+
+			}
+		})
+	}
+
 }
